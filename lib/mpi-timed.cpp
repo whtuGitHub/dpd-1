@@ -59,12 +59,14 @@ public:
   }
 };
 
+// request types
 enum dummy_request_type {
   req_in,
   req_out,
   req_MAX
 };
 
+// request tags
 enum tag_type {
   tag_search_particles,
   tag_transfer_particles,
@@ -72,6 +74,7 @@ enum tag_type {
   tag_position
 };
 
+// border contact between neighbors
 enum connect_type {
   c0,
   cx,

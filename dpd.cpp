@@ -197,79 +197,8 @@ void crash(int i) {
 #include "lib/neighbor.cpp"
 #include "lib/neighbor-util.cpp"
 #include "lib/neighbor-search.cpp"
+#include "lib/neighbor-comm.cpp"
 #include "lib/fileio.cpp"
-
-void communicate_forces() {
-  if (run_var.neighbor_count==0) return;
-  MPI::empty(req_out);
-  if (run_var.buffer) delete [] run_var.buffer;
-  
-  int total_send_size=0;
-  int total_receive_size=0;
-  int total_receive_count=0;
-  for (unsigned int i=0;i<run_var.neighbor_count;++i) {
-    total_send_size+=run_var.neighbors[i].force_send_size;
-    total_receive_size+=run_var.neighbors[i].force_receive_size;
-    total_receive_count+=run_var.neighbors[i].force_receive_list.size();
-  }
-  
-  char *incoming_buffer=new char[total_receive_size];
-  run_var.buffer=new char[total_send_size];
-  char *in_buffer=incoming_buffer;
-  char *out_buffer=run_var.buffer;
-  MPI_Request *req=new MPI_Request[run_var.neighbor_count];
-  for (unsigned int i=0;i<run_var.neighbor_count;++i) {
-    run_var.neighbors[i].force_receive(in_buffer,&req[i]);
-  }
-  for (unsigned int i=0;i<run_var.neighbor_count;++i) {
-    run_var.neighbors[i].force_send(out_buffer);
-  }
-  
-  int index;
-  for (unsigned int i=0;i<run_var.neighbor_count;++i) {
-    MPI::wait_any(run_var.neighbor_count,req,&index);
-    run_var.neighbors[index].force_process();
-  }
-  
-  delete [] req;
-  delete [] incoming_buffer;
-}
-
-void communicate_positions() {
-  if (run_var.neighbor_count==0) return;
-  MPI::empty(req_out);
-  if (run_var.buffer) delete [] run_var.buffer;
-  
-  int total_send_size=0;
-  int total_receive_size=0;
-  int total_receive_count=0;
-  for (unsigned int i=0;i<run_var.neighbor_count;++i) {
-    total_send_size+=run_var.neighbors[i].position_send_size;
-    total_receive_size+=run_var.neighbors[i].position_receive_size;
-    total_receive_count+=run_var.neighbors[i].force_send_list.size(); //force send is position receive
-  }
-  
-  char *incoming_buffer=new char[total_receive_size];
-  run_var.buffer=new char[total_send_size];
-  char *in_buffer=incoming_buffer;
-  char *out_buffer=run_var.buffer;
-  MPI_Request *req=new MPI_Request[run_var.neighbor_count];
-  for (unsigned int i=0;i<run_var.neighbor_count;++i) {
-    run_var.neighbors[i].position_receive(in_buffer,&req[i]);
-  }
-  for (unsigned int i=0;i<run_var.neighbor_count;++i) {
-    run_var.neighbors[i].position_send(out_buffer);
-  }
-  
-  int index;
-  for (unsigned int i=0;i<run_var.neighbor_count;++i) {
-    MPI::wait_any(run_var.neighbor_count,req,&index);
-    run_var.neighbors[index].position_process();
-  }
-  
-  delete [] req;
-  delete [] incoming_buffer;
-}
 
 void run_algorithm(rngSource generator) {
   unsigned long long neighbor_search_t=parameters::neighbor_search_time;
@@ -399,152 +328,167 @@ void run_algorithm(rngSource generator) {
   }
 }
 
+// initial parameters
 void init() {
-  parameters::continuation=false;
-  parameters::x_ranks=1;
-  parameters::y_ranks=1;
-  parameters::z_ranks=1;
+  parameters::continuation = false;
+  parameters::x_ranks = 1;
+  parameters::y_ranks = 1;
+  parameters::z_ranks = 1;
 }
 
+// main
 int main(int argc,char* argv[]) {
   init();
-  std::string input_string="input";
-  std::string output_root="output";
-  long seed_override=0;
-  bool show_cycles=false;
+  // defaults
+  std::string input_string = "input";
+  std::string output_root = "output";
+  long seed_override = 0;
+  bool show_cycles = false;
   rngSource generator;
   
   //parse command line
   for (int i=1;i<argc;++i) {
-    if (!std::strcmp(argv[i],"-continue")) {
-      parameters::continuation=true;
+    if (!std::strcmp(argv[i], "-continue")) {
+      parameters::continuation = true;
       continue;
     }
-    if (!std::strcmp(argv[i],"-show-cycles")) {
-      show_cycles=true;
+    if (!std::strcmp(argv[i], "-show-cycles")) {
+      show_cycles = true;
       continue;
     }
-    if (i==argc-1) continue;
-    if (!std::strcmp(argv[i],"-seed")) {
-      seed_override=std::atoi(argv[++i]);
+    if (i == argc-1) continue;
+    if (!std::strcmp(argv[i], "-seed")) {
+      seed_override = std::atoi(argv[++i]);
       continue;
     }
-    if (!std::strcmp(argv[i],"-input")) {
-      input_string=argv[++i];
+    if (!std::strcmp(argv[i], "-input")) {
+      input_string = argv[++i];
       continue;
     }
-    if (!std::strcmp(argv[i],"-output")) {
-      output_root=argv[++i];
+    if (!std::strcmp(argv[i], "-output")) {
+      output_root = argv[++i];
       continue;
     }
-    if (!std::strcmp(argv[i],"-x")) {
-      parameters::x_ranks=std::atoi(argv[++i]);
+    if (!std::strcmp(argv[i], "-x")) {
+      parameters::x_ranks = std::atoi(argv[++i]);
       continue;
     }
-    if (!std::strcmp(argv[i],"-y")) {
-      parameters::y_ranks=std::atoi(argv[++i]);
+    if (!std::strcmp(argv[i], "-y")) {
+      parameters::y_ranks = std::atoi(argv[++i]);
       continue;
     }
-    if (!std::strcmp(argv[i],"-z")) {
-      parameters::z_ranks=std::atoi(argv[++i]);
+    if (!std::strcmp(argv[i], "-z")) {
+      parameters::z_ranks = std::atoi(argv[++i]);
       continue;
     }
     
-    std::cerr << "Unknown command line parameter \"" << argv[i] << "\"! (Aborting)\n";
+    std::cerr << "Unknown command line parameter \"" << argv[i] <<
+                                                     "\"! (Aborting)\n";
     crash(1);
   }
   
-  MPI::init(&argc,&argv);
+  MPI::init(&argc, &argv);
   
   //seed rng for initialization
-  if (seed_override) {
-    generator.rseed(seed_override);
-  }
+  if (seed_override) generator.rseed(seed_override);
   else {
-    long this_seed=getpid()*time(NULL);
-    MPI::bcast(&this_seed,sizeof(this_seed),0);
+    long this_seed = getpid() * time(NULL);
+    MPI::bcast(&this_seed, sizeof(this_seed), 0);
     generator.rseed(this_seed);
   }
+  
+  
   std::ifstream input_file(input_string.c_str());
   if (!input_file.is_open()) {
-    std::cerr << "Unable to open input file \"" << input_string << "\"! (Aborting)\n";
+    std::cerr << "Unable to open input file \"" << input_string <<
+                                                     "\"! (Aborting)\n";
     crash(2);
   }
   
+  // set output file name
   std::stringstream ss;
   ss.str(std::string());
   ss << output_root << MPI::rank << ".vtf";
-  std::string output_string=ss.str();
+  std::string output_string = ss.str();
   
+  // if not restoring from a backup
   if (!parameters::continuation) {
-    run_var.output_file.open(output_string.c_str(),std::ios_base::out|std::ios_base::trunc);
+    run_var.output_file.open(output_string.c_str(),
+                             std::ios_base::out | std::ios_base::trunc);
     if (!run_var.output_file.is_open()) {
       std::cerr << "Unable to open output file \"" << output_string << "\"! (Aborting)\n";
       crash(2);
     }
   }
   
-  read_parameters(input_file,generator);
+  read_parameters(input_file, generator);
   
 #ifdef DETERMINE_VISCOSITY
   ss.str(std::string());
   ss << output_string << "_v" << MPI::rank;
-  std::string viscosity_string=ss.str();
-  run_var.viscosity_file.open(viscosity_string.c_str(),std::ios_base::out|std::ios_base::trunc);
+  std::string viscosity_string = ss.str();
+  run_var.viscosity_file.open(viscosity_string.c_str(),
+                             std::ios_base::out | std::ios_base::trunc);
   if (!run_var.viscosity_file.is_open()) {
-    std::cerr << "Unable to open viscosity file \"" << viscosity_string << "\"! (Aborting)\n";
+    std::cerr << "Unable to open viscosity file \"" <<
+                                 viscosity_string << "\"! (Aborting)\n";
     crash(2);
   }
   
   ss.str(std::string());
   ss << output_root << "_v" << MPI::rank << ".backup";
-  run_var.backup_viscosity_name=ss.str();
+  run_var.backup_viscosity_name = ss.str();
 #endif
   ss.str(std::string());
   ss << output_root << MPI::rank << ".backup";
-  run_var.backup_file_name=ss.str();
+  run_var.backup_file_name = ss.str();
   
+  // restore backup if continuing
   if (parameters::continuation) {
     std::ifstream restore_file(run_var.backup_file_name.c_str());
     int old_version;
-    restore_file.read((char*)&old_version,sizeof(int));
-    restore_file.read((char*)&run_var.elapsed_steps,sizeof(unsigned long long));
-    restore_file.read((char*)&run_var.output_location,sizeof(unsigned long long));
-    restore_file.read((char*)&run_var.my_particles,sizeof(int));
-    restore_file.read((char*)&run_var.visible_particles,sizeof(int));
+    restore_file.read((char*)&old_version, sizeof(int));
+    restore_file.read((char*)&run_var.elapsed_steps,
+                              sizeof(unsigned long long));
+    restore_file.read((char*)&run_var.output_location,
+                              sizeof(unsigned long long));
+    restore_file.read((char*)&run_var.my_particles, sizeof(int));
+    restore_file.read((char*)&run_var.visible_particles, sizeof(int));
     run_var.particle_array.resize(run_var.visible_particles);
-    for (unsigned int i=0;i<run_var.visible_particles;++i) {
+    for (unsigned int i = 0; i < run_var.visible_particles; ++i) {
       run_var.particle_array[i].restore(restore_file);
-      run_var.particle_index[run_var.particle_array[i].index]=i;
+      run_var.particle_index[run_var.particle_array[i].index] = i;
     }
     restore_file.close();
     
-    run_var.output_file.open(output_string.c_str(),std::ios_base::out|std::ios_base::app);
+    run_var.output_file.open(output_string.c_str(),
+                             std::ios_base::out | std::ios_base::app);
     if (!run_var.output_file.is_open()) {
-      std::cerr << "Unable to open output file \"" << output_string << "\"! (Aborting)\n";
+      std::cerr << "Unable to open output file \"" << output_string <<
+                                                     "\"! (Aborting)\n";
       crash(2);
     }
     if (truncate(output_string.c_str(),run_var.output_location)) {
-      std::cerr << "Failed to truncate file \"" << output_string << "\"! (Aborting)\n";
+      std::cerr << "Failed to truncate file \"" << output_string <<
+                                                     "\"! (Aborting)\n";
       crash(2);
     }
     run_var.output_file.seekp(run_var.output_location);
   }
   
   //seed rng for run
-  if (seed_override) {
-    generator.rseed(seed_override*(MPI::rank+1));
-  }
-  else {
-    generator.rseed((MPI::rank+1)*time(NULL)*getpid());
-  }
+  if (seed_override) generator.rseed(seed_override * (MPI::rank + 1));
+  else generator.rseed((MPI::rank + 1) * time(NULL) * getpid());
   
   run_var.init();
   run_algorithm(generator);
+  
+  // backup on exit
   backup(parameters::total_steps);
 #ifdef DETERMINE_VISCOSITY
   run_var.viscosity_print();
 #endif
+  // print timer stats if requested
   if (show_cycles) MPI::clock_assembly();
   MPI::end();
   
