@@ -181,22 +181,26 @@ void kofstream::close() {
   run_var.open_file_list.remove(&(*this));
 }
 
-#include "lib/neighbor.cpp"
-
+// abort program and print exit code
 void crash(int i) {
   std::cerr << "CRASH: Exit Code " << i << "!\n";
   std::cerr.flush(); std::cout.flush();
-  for (std::list<kofstream*>::iterator p=run_var.open_file_list.begin(); p!=run_var.open_file_list.end(); p++) {
+  for (std::list<kofstream*>::iterator p  =
+       run_var.open_file_list.begin(); p !=
+       run_var.open_file_list.end(); p++) {
     (*p)->close();
   }
   MPI::abort(i);
   std::exit(i);
 }
 
-unsigned long long input_unit_convert(kfloat t,std::string &unit) {
+#include "lib/neighbor.cpp"
+
+// convert input file units
+unsigned long long input_unit_convert(kfloat t, std::string &unit) {
   switch (unit[0]) {
     case 'u':
-      return kround(t/parameters::delta_t);
+      return kround(t / parameters::delta_t);
       break;
     case 's':
       return kround(t);
@@ -208,201 +212,50 @@ unsigned long long input_unit_convert(kfloat t,std::string &unit) {
   return 0;
 }
 
-void read_interaction_type(std::ifstream &file,interaction_type *itype,interaction_type *jtype) {
+// parse interaction type from input file
+void read_interaction_type(std::ifstream &file,
+                     interaction_type *itype, interaction_type *jtype) {
   std::string empty;
-  int force_type=0;
-  file >> empty >> itype->lambda >> itype->gamma_s >> itype->gamma_c >> itype->a >> itype->b >> force_type;
-  itype->a*=parameters::kT;
-  itype->sigma_s=sqrt(2.*parameters::kT*itype->gamma_s);
-  itype->sigma_c=sqrt(2.*parameters::kT*itype->gamma_c);
-  itype->c=exp(-itype->b);
+  int force_type = 0;
+  file >> empty >> itype->lambda >> itype->gamma_s >> itype->gamma_c >>
+                                    itype->a >> itype->b >> force_type;
+  itype->a *= parameters::kT;
+  itype->sigma_s = sqrt(2. * parameters::kT * itype->gamma_s);
+  itype->sigma_c = sqrt(2. * parameters::kT * itype->gamma_c);
+  itype->c = exp(-itype->b);
   
+  // set force function
   switch (force_type) {
     case 0:
-      itype->force_t=&force_t_a;
+      itype->force_t = &force_t_a;
       break;
     case 1:
-      itype->force_t=&force_t_b;
+      itype->force_t = &force_t_b;
       break;
     default:
-      std::cerr << "Unknown interaction force type \"" << force_type << "\"! (Aborting)\n";
+      std::cerr << "Unknown interaction force type \"" << force_type <<
+                                                     "\"! (Aborting)\n";
       crash(1);
   }
   
-  jtype->lambda=1.-itype->lambda;
-  jtype->gamma_s=itype->gamma_s;
-  jtype->gamma_c=itype->gamma_c;
-  jtype->sigma_s=itype->sigma_s;
-  jtype->sigma_c=itype->sigma_c;
-  jtype->a=itype->a;
-  jtype->b=itype->b;
-  jtype->c=itype->c;
-  jtype->force_t=itype->force_t;
+  jtype->lambda = 1. - itype->lambda;
+  jtype->gamma_s = itype->gamma_s;
+  jtype->gamma_c = itype->gamma_c;
+  jtype->sigma_s = itype->sigma_s;
+  jtype->sigma_c = itype->sigma_c;
+  jtype->a = itype->a;
+  jtype->b = itype->b;
+  jtype->c = itype->c;
+  jtype->force_t = itype->force_t;
 }
 
-void read_particle_type(std::ifstream &file,particle_type *ptype) {
+// parse particle type from input file
+void read_particle_type(std::ifstream &file, particle_type *ptype) {
   file >> ptype->name >> ptype->type >> ptype->write;
   file >> ptype->radius >> ptype->mass;
   file >> ptype->activity;
-  for (int i=0;i<D;++i) ptype->inverse_moment[i]=1./(2.*ptype->mass*ptype->radius*ptype->radius/5.);
-}
-
-void determine_boundaries() {
-  kfloat x_per_rank=(kfloat)parameters::box_x[0]/parameters::x_ranks;
-  kfloat y_per_rank=(kfloat)parameters::box_x[1]/parameters::y_ranks;
-  kfloat z_per_rank=(kfloat)parameters::box_x[2]/parameters::z_ranks;
-  int x_neighbors=std::min(parameters::x_ranks,3);
-  int y_neighbors=std::min(parameters::y_ranks,3);
-  int z_neighbors=std::min(parameters::z_ranks,3);
-  run_var.neighbor_count=x_neighbors*y_neighbors*z_neighbors-1;
-  run_var.neighbors=new neighbor[run_var.neighbor_count];
-  for (unsigned int i=0;i<run_var.neighbor_count;++i) run_var.neighbors[i].rank=-1;
-  
-  int z=MPI::rank/(parameters::x_ranks*parameters::y_ranks);
-  int y=(MPI::rank-z*parameters::x_ranks*parameters::y_ranks)/parameters::x_ranks;
-  int x=MPI::rank-z*parameters::x_ranks*parameters::y_ranks-y*parameters::x_ranks;
-  run_var.my_bounds[0]=x*x_per_rank;
-  run_var.my_bounds[1]=y*y_per_rank;
-  run_var.my_bounds[2]=z*z_per_rank;
-  run_var.my_bounds[0+D]=(x+1)*x_per_rank;
-  run_var.my_bounds[1+D]=(y+1)*y_per_rank;
-  run_var.my_bounds[2+D]=(z+1)*z_per_rank;
-  
-  int index=0;
-  for (int dx=-1;dx<2;++dx) for (int dy=-1;dy<2;++dy) for (int dz=-1;dz<2;++dz) {
-    if (dx==0 && dy==0 && dz==0) continue;
-    int ix=x+dx; if (ix==parameters::x_ranks) ix=0; else if (ix<0) ix=parameters::x_ranks-1;
-    int iy=y+dy; if (iy==parameters::y_ranks) iy=0; else if (iy<0) iy=parameters::y_ranks-1;
-    int iz=z+dz; if (iz==parameters::z_ranks) iz=0; else if (iz<0) iz=parameters::z_ranks-1;
-    int this_rank=ix+iy*parameters::x_ranks+iz*parameters::x_ranks*parameters::y_ranks;
-    if (this_rank==MPI::rank) continue;
-    
-    bool reject=false;
-    for (unsigned int i=0;i<run_var.neighbor_count;++i) {
-      if (run_var.neighbors[i].rank==this_rank) {
-        reject=true;
-        break;
-      }
-    }
-    if (reject) continue;
-    
-    run_var.rank_to_neighbor[this_rank]=index;
-    run_var.neighbors[index].rank=this_rank;
-    run_var.neighbors[index].bounds[0]=ix*x_per_rank;
-    run_var.neighbors[index].bounds[1]=iy*y_per_rank;
-    run_var.neighbors[index].bounds[2]=iz*z_per_rank;
-    run_var.neighbors[index].bounds[0+D]=(ix+1)*x_per_rank;
-    run_var.neighbors[index].bounds[1+D]=(iy+1)*y_per_rank;
-    run_var.neighbors[index].bounds[2+D]=(iz+1)*z_per_rank;
-    
-    bool connect_x=false;
-    bool connect_y=false;
-    bool connect_z=false;
-
-    if ((vmath::distance(run_var.neighbors[index].bounds,run_var.my_bounds+D,0)==0 && vmath::distance(run_var.my_bounds+D,run_var.my_bounds,0)!=0) ||
-      (vmath::distance(run_var.my_bounds+D,run_var.my_bounds,0)!=0 && vmath::distance(run_var.neighbors[index].bounds+D,run_var.my_bounds,0)==0)) connect_x=true;
-    if ((vmath::distance(run_var.neighbors[index].bounds,run_var.my_bounds+D,1)==0 && vmath::distance(run_var.my_bounds+D,run_var.my_bounds,1)!=0) ||
-      (vmath::distance(run_var.my_bounds+D,run_var.my_bounds,1)!=0 && vmath::distance(run_var.neighbors[index].bounds+D,run_var.my_bounds,1)==0)) connect_y=true;
-    if ((vmath::distance(run_var.neighbors[index].bounds,run_var.my_bounds+D,2)==0 && vmath::distance(run_var.my_bounds+D,run_var.my_bounds,2)!=0) ||
-      (vmath::distance(run_var.my_bounds+D,run_var.my_bounds,2)!=0 && vmath::distance(run_var.neighbors[index].bounds+D,run_var.my_bounds,2)==0)) connect_z=true;
-    
-    const kfloat F=3;
-    const kfloat F2=3;
-    const kfloat F3=3;
-    const kfloat T1=0.1;
-    const kfloat T2=0.1;
-    const kfloat T3=0.1;
-    if (connect_x && connect_y && connect_z) {
-      run_var.neighbors[index].connection=cxyz;
-      run_var.neighbors[index].search_in_size=(int)std::ceil(parameters::neighbor_cutoff*parameters::neighbor_cutoff*parameters::neighbor_cutoff*parameters::density*F3*particle::search_size);
-      run_var.neighbors[index].transfer_in_size=(int)std::ceil(T3*parameters::density*F*particle::transfer_size);
-      if (parameters::x_ranks==2) {
-        run_var.neighbors[index].search_in_size*=2;
-        run_var.neighbors[index].transfer_in_size*=2;
-      }
-      if (parameters::y_ranks==2) {
-        run_var.neighbors[index].search_in_size*=2;
-        run_var.neighbors[index].transfer_in_size*=2;
-      }
-      if (parameters::z_ranks==2) {
-        run_var.neighbors[index].search_in_size*=2;
-        run_var.neighbors[index].transfer_in_size*=2;
-      }
-    }
-    else if (connect_x && connect_y) {
-      run_var.neighbors[index].connection=cxy;
-      run_var.neighbors[index].search_in_size=(int)std::ceil(parameters::neighbor_cutoff*parameters::neighbor_cutoff*z_per_rank*parameters::density*F2*particle::search_size);
-      run_var.neighbors[index].transfer_in_size=(int)std::ceil(T2*z_per_rank*parameters::density*F*particle::transfer_size);
-      if (parameters::x_ranks==2) {
-        run_var.neighbors[index].search_in_size*=2;
-        run_var.neighbors[index].transfer_in_size*=2;
-      }
-      if (parameters::y_ranks==2) {
-        run_var.neighbors[index].search_in_size*=2;
-        run_var.neighbors[index].transfer_in_size*=2;
-      }
-    }
-    else if (connect_y && connect_z) {
-      run_var.neighbors[index].connection=cyz;
-      run_var.neighbors[index].search_in_size=(int)std::ceil(parameters::neighbor_cutoff*parameters::neighbor_cutoff*x_per_rank*parameters::density*F2*particle::search_size);
-      run_var.neighbors[index].transfer_in_size=(int)std::ceil(T2*x_per_rank*parameters::density*F*particle::transfer_size);
-      if (parameters::y_ranks==2) {
-        run_var.neighbors[index].search_in_size*=2;
-        run_var.neighbors[index].transfer_in_size*=2;
-      }
-      if (parameters::z_ranks==2) {
-        run_var.neighbors[index].search_in_size*=2;
-        run_var.neighbors[index].transfer_in_size*=2;
-      }
-    }
-    else if (connect_x && connect_z) {
-      run_var.neighbors[index].connection=cxz;
-      run_var.neighbors[index].search_in_size=(int)std::ceil(parameters::neighbor_cutoff*parameters::neighbor_cutoff*y_per_rank*parameters::density*F2*particle::search_size);
-      run_var.neighbors[index].transfer_in_size=(int)std::ceil(T2*y_per_rank*parameters::density*F*particle::transfer_size);
-      if (parameters::x_ranks==2) {
-        run_var.neighbors[index].search_in_size*=2;
-        run_var.neighbors[index].transfer_in_size*=2;
-      }
-      if (parameters::z_ranks==2) {
-        run_var.neighbors[index].search_in_size*=2;
-        run_var.neighbors[index].transfer_in_size*=2;
-      }
-    }
-    else if (connect_x) {
-      run_var.neighbors[index].connection=cx;
-      run_var.neighbors[index].search_in_size=(int)std::ceil(parameters::neighbor_cutoff*y_per_rank*z_per_rank*parameters::density*F*particle::search_size);
-      run_var.neighbors[index].transfer_in_size=(int)std::ceil(T1*y_per_rank*z_per_rank*parameters::density*F*particle::transfer_size);
-      if (parameters::x_ranks==2) {
-        run_var.neighbors[index].search_in_size*=2;
-        run_var.neighbors[index].transfer_in_size*=2;
-      }
-    }
-    else if (connect_y) {
-      run_var.neighbors[index].connection=cy;
-      run_var.neighbors[index].search_in_size=(int)std::ceil(parameters::neighbor_cutoff*x_per_rank*z_per_rank*parameters::density*F*particle::search_size);
-      run_var.neighbors[index].transfer_in_size=(int)std::ceil(T1*x_per_rank*z_per_rank*parameters::density*F*particle::transfer_size);
-      if (parameters::y_ranks==2) {
-        run_var.neighbors[index].search_in_size*=2;
-        run_var.neighbors[index].transfer_in_size*=2;
-      }
-    }
-    else if (connect_z) {
-      run_var.neighbors[index].connection=cz;
-      run_var.neighbors[index].search_in_size=(int)std::ceil(parameters::neighbor_cutoff*x_per_rank*y_per_rank*parameters::density*F*particle::search_size);
-      run_var.neighbors[index].transfer_in_size=(int)std::ceil(T1*x_per_rank*y_per_rank*parameters::density*F*particle::transfer_size);
-      if (parameters::z_ranks==2) {
-        run_var.neighbors[index].search_in_size*=2;
-        run_var.neighbors[index].transfer_in_size*=2;
-      }
-    }
-    else {
-      run_var.neighbors[index].connection=c0;
-      std::cerr << "Neighbor with no connection? (Aborting)\n";
-      crash(1);
-    }
-    
-    ++index;
-  }
+  for (int i = 0; i < D; ++i) ptype->inverse_moment[i] = 1. /
+    (2. * ptype->mass * ptype->radius * ptype->radius / 5.);
 }
 
 void write_structure(kofstream &file) {
