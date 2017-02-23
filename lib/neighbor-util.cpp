@@ -221,7 +221,7 @@ void determine_boundaries() {
 
 // send and receive particles between neighbors
 void particle_exchange() {
-  //determine particle destinations
+  // determine particle destinations
   unsigned int end_index = run_var.my_particles - 1;
   for (unsigned int i = 0; i < run_var.my_particles;) {
     bool do_transfer = false;
@@ -248,7 +248,7 @@ void particle_exchange() {
     in_buffer_size  += run_var.neighbors[i].transfer_in_size;
   }
   
-  //send & receive particle information
+  // send & receive particle information
   int buffer_size = out_buffer_size + in_buffer_size;
   char *particle_buffer = new char[buffer_size];
   char *particle_out_buffer = particle_buffer;
@@ -264,7 +264,7 @@ void particle_exchange() {
   int index;
   int slot = run_var.my_particles;
   run_var.search_point = slot;
-  //put incoming particles into vector
+  // put incoming particles into vector
   for (unsigned int i = 0; i < run_var.neighbor_count; ++i) {
     MPI::wait_any(run_var.neighbor_count, req, &index);
     run_var.neighbors[index].transfer_process(slot);

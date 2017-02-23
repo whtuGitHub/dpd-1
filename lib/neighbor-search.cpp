@@ -74,7 +74,7 @@ void neighbor_search() {
   
   particle_exchange();
   
-  //test particles for sending to neighbors
+  // test particles for sending to neighbors
   for (unsigned int i = run_var.search_point; i < run_var.my_particles;
     ++i) for (unsigned int j = 0; j < run_var.neighbor_count; ++j)
     run_var.neighbors[j].search_check(&run_var.particle_array[i], i);
@@ -89,7 +89,7 @@ void neighbor_search() {
   }
   int buffer_size = out_buffer_size + in_buffer_size;
   
-  //send & receive particle information
+  // send & receive particle information
   char *particle_buffer = new char[buffer_size];
   char *particle_out_buffer = particle_buffer;
   char *particle_in_buffer = particle_buffer + out_buffer_size;
@@ -102,7 +102,7 @@ void neighbor_search() {
   int index;
   run_var.visible_particles = run_var.my_particles;
   int slot = run_var.my_particles;
-  //put incoming particles into vector
+  // put incoming particles into vector
   for (unsigned int i = 0; i < run_var.neighbor_count; ++i) {
     MPI::wait_any(run_var.neighbor_count, req, &index);
     run_var.neighbors[index].search_process(slot);
