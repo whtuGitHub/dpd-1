@@ -1578,18 +1578,18 @@ void run_algorithm(rngSource generator) {
 #ifdef DETERMINE_VISCOSITY
       kfloat total_v[D];
       vmath::zero(total_v);
-      for (int i=0;i<run_var.my_particles;++i) {
+      for (unsigned int i=0;i<run_var.my_particles;++i) {
         vmath::add(total_v,run_var.particle_array[i].v);
       }
       kfloat rtotal_v[D];
       MPI::allred(&total_v,&rtotal_v,D,MPI_KFLOAT,MPI_SUM);
       vmath::div(rtotal_v,parameters::particle_count);
-      for (int i=0;i<run_var.my_particles;++i) {
+      for (unsigned int i=0;i<run_var.my_particles;++i) {
         vmath::sub(run_var.particle_array[i].v,rtotal_v);
         vmath::sub(run_var.particle_array[i].v_,rtotal_v);
       }
       static unsigned long long t_start=(unsigned long long)(100./parameters::delta_t);
-      if (t+run_var.elapsed_steps>t_start) for (int i=0;i<run_var.my_particles;++i) {
+      if (t+run_var.elapsed_steps>t_start) for (unsigned int i=0;i<run_var.my_particles;++i) {
         int bin=(int)(run_var.particle_array[i].r[0]/run_var.v_division);
         ++run_var.v_count[bin];
         run_var.v_sum[bin]+=run_var.particle_array[i].v[1];
@@ -1648,7 +1648,7 @@ void run_algorithm(rngSource generator) {
       kfloat avg=0;
       kfloat avg2=0;
       unsigned int count=0;
-      for (int i=0;i<run_var.my_particles;++i) {
+      for (unsigned int i=0;i<run_var.my_particles;++i) {
         if (run_var.particle_array[i].type==1) {
           ++count;
           avg+=run_var.particle_array[i].temperature();
