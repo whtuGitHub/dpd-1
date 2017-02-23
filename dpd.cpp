@@ -195,62 +195,8 @@ void crash(int i) {
 }
 
 #include "lib/neighbor.cpp"
+#include "lib/neighbor-util.cpp"
 #include "lib/fileio.cpp"
-
-void particle_exchange() {
-  //determine particle destinations
-  unsigned int end_index=run_var.my_particles-1;
-  for (unsigned int i=0;i<run_var.my_particles;) {
-    bool do_transfer=false;
-    for (unsigned int j=0;j<run_var.neighbor_count;++j) {
-      if (run_var.neighbors[j].transfer_check(&run_var.particle_array[i],i,end_index)) {
-        end_index--;
-        run_var.my_particles--;
-        do_transfer=true;
-        break;
-      }
-    }
-    if (!do_transfer) {
-      for (unsigned int j=0;j<run_var.neighbor_count;++j) {
-        run_var.neighbors[j].search_check(&run_var.particle_array[i],i);
-      }
-      ++i;
-    }
-  }
-  
-  int out_buffer_size=0;
-  int in_buffer_size=0;
-  for (unsigned int i=0;i<run_var.neighbor_count;++i) {
-    out_buffer_size+=run_var.neighbors[i].transfer_out_list.size()*particle::transfer_size+sizeof(int);
-    in_buffer_size+=run_var.neighbors[i].transfer_in_size;
-  }
-  
-  //send & receive particle information
-  int buffer_size=out_buffer_size+in_buffer_size;
-  char *particle_buffer=new char[buffer_size];
-  char *particle_out_buffer=particle_buffer;
-  char *particle_in_buffer=particle_buffer+out_buffer_size;
-  MPI_Request *req=new MPI_Request[run_var.neighbor_count];
-  for (unsigned int i=0;i<run_var.neighbor_count;++i) {
-    run_var.neighbors[i].transfer_receive_particles(particle_in_buffer,&req[i]);
-  }
-  for (unsigned int i=0;i<run_var.neighbor_count;++i) {
-    run_var.neighbors[i].transfer_send_particles(particle_out_buffer);
-  }
-  
-  int index;
-  int slot=run_var.my_particles;
-  run_var.search_point=slot;
-  //put incoming particles into vector
-  for (unsigned int i=0;i<run_var.neighbor_count;++i) {
-    MPI::wait_any(run_var.neighbor_count,req,&index);
-    run_var.neighbors[index].transfer_process(slot);
-  }
-
-  MPI::empty_all();
-  delete [] req;
-  delete [] particle_buffer;
-}
 
 void neighbor_search_alone() {
   for (unsigned int i=0;i<run_var.visible_particles;++i) {
