@@ -304,3 +304,7 @@ public:
     return false;
   }
 };
+
+bool compare_particle(const particle &i, const particle &j) {
+  return i.r[0] < j.r[0];
+}

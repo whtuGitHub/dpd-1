@@ -166,120 +166,7 @@ kfloat force_t_b(const kfloat r, const kfloat a, const kfloat b,
 }
 
 #include "lib/particle.cpp"
-
-bool compare_particle(const particle &i, const particle &j) {
-  return i.r[0] < j.r[0];
-}
-
-class neighbor;
-
-class run_variable {
-public:
-  std::list<kofstream*> open_file_list;
-  std::vector<particle> particle_array;
-  unsigned int *particle_index;
-  unsigned int my_particles;
-  unsigned int visible_particles;
-  unsigned int neighbor_count;
-  unsigned int search_point;
-  kfloat my_bounds[2*D];
-  neighbor *neighbors;
-  std::vector< std::vector<int> > interaction_list;
-  unsigned long long output_location;
-  kofstream output_file;
-  std::string backup_file_name;
-  unsigned long long elapsed_steps;
-#ifdef DETERMINE_VISCOSITY
-  std::string backup_viscosity_name;
-  kfloat v_division;
-  kofstream viscosity_file;
-  unsigned int v_bins;
-  unsigned long long *v_count;
-  kfloat *v_sum;
-#endif
-  std::map<int,int> rank_to_neighbor;
-  char *buffer;
-  std::vector<unsigned int> ***particle_box;
-  
-  run_variable() {
-    buffer=NULL;
-  }
-  
-  bool particle_is_mine(particle &p) {
-    return (p.r[0]>=my_bounds[0] && p.r[0]<my_bounds[0+D] && p.r[1]>=my_bounds[1] && p.r[1]<my_bounds[1+D] && p.r[2]>=my_bounds[2] && p.r[2]<my_bounds[2+D]);
-  }
-  
-  void init_particle_index() {
-    for (unsigned int i=0;i<my_particles;++i) {
-      particle_index[particle_array[i].index]=i;
-    }
-  }
-  
-  void add_particle(particle &p) {
-    p.rank=MPI::rank;
-    my_particles++;
-    visible_particles++;
-    particle_array.push_back(p);
-  }
-  
-#ifdef DETERMINE_VISCOSITY
-  void viscosity_print() {
-    for (unsigned int i=0;i<v_bins;++i) {
-      if (v_count[i]>0) viscosity_file << v_division*((kfloat)i+0.5) << " " << v_sum[i]/v_count[i] << "\n";
-    }
-  }
-#endif
-  
-  void init() {
-    init_particle_index();
-    output_location=output_file.tellp();
-    particle_box=new std::vector<unsigned int> **[parameters::box_x[0]];
-    for (int i=0;i<parameters::box_x[0];++i) {
-      particle_box[i]=new std::vector<unsigned int> *[parameters::box_x[1]];
-      for (int j=0;j<parameters::box_x[1];++j) {
-        particle_box[i][j]=new std::vector<unsigned int> [parameters::box_x[2]];
-        for (int k=0;k<parameters::box_x[2];++k) {
-          particle_box[i][j][k]=std::vector<unsigned int>();
-        }
-      }
-    }
-    if (!parameters::continuation) elapsed_steps=0;
-#ifdef DETERMINE_VISCOSITY
-    v_division=0.05;
-    v_bins=(int)(parameters::box_x[0]/v_division+0.5);
-    v_count=new unsigned long long[v_bins];
-    v_sum=new kfloat[v_bins];
-    for (unsigned int i=0;i<v_bins;++i) {
-      v_count[i]=0;
-      v_sum[i]=0;
-    }
-    if (parameters::continuation) {
-      std::ifstream restorefile(backup_viscosity_name.c_str());
-      int old_version;
-      restorefile.read((char*)&old_version,sizeof(int));
-      restorefile.read((char*)v_count,sizeof(unsigned long long)*v_bins);
-      restorefile.read((char*)v_sum,sizeof(kfloat)*v_bins);
-      restorefile.close();
-    }
-#endif
-  }
-  
-  void empty_the_box() {
-    for (int i=0;i<parameters::box_x[0];++i) {
-      for (int j=0;j<parameters::box_x[1];++j) {
-        for (int k=0;k<parameters::box_x[2];++k) {
-          particle_box[i][j][k].clear();
-        }
-      }
-    }
-  }
-  
-  void fill_the_box() {
-    for (unsigned int i=0;i<visible_particles;++i) {
-      particle_box[(int)particle_array[i].r[0]][(int)particle_array[i].r[1]][(int)particle_array[i].r[2]].push_back(particle_array[i].index);
-    }
-  }
-};
+#include "lib/run_variable.cpp"
 run_variable run_var;
 
 void kofstream::open(const char *filename,std::ios_base::openmode mode=std::ios_base::out) {
@@ -1516,19 +1403,19 @@ int main(int argc,char* argv[]) {
   run_var.backup_file_name=ss.str();
   
   if (parameters::continuation) {
-    std::ifstream restorefile(run_var.backup_file_name.c_str());
+    std::ifstream restore_file(run_var.backup_file_name.c_str());
     int old_version;
-    restorefile.read((char*)&old_version,sizeof(int));
-    restorefile.read((char*)&run_var.elapsed_steps,sizeof(unsigned long long));
-    restorefile.read((char*)&run_var.output_location,sizeof(unsigned long long));
-    restorefile.read((char*)&run_var.my_particles,sizeof(int));
-    restorefile.read((char*)&run_var.visible_particles,sizeof(int));
+    restore_file.read((char*)&old_version,sizeof(int));
+    restore_file.read((char*)&run_var.elapsed_steps,sizeof(unsigned long long));
+    restore_file.read((char*)&run_var.output_location,sizeof(unsigned long long));
+    restore_file.read((char*)&run_var.my_particles,sizeof(int));
+    restore_file.read((char*)&run_var.visible_particles,sizeof(int));
     run_var.particle_array.resize(run_var.visible_particles);
     for (unsigned int i=0;i<run_var.visible_particles;++i) {
-      run_var.particle_array[i].restore(restorefile);
+      run_var.particle_array[i].restore(restore_file);
       run_var.particle_index[run_var.particle_array[i].index]=i;
     }
-    restorefile.close();
+    restore_file.close();
     
     run_var.output_file.open(output_string.c_str(),std::ios_base::out|std::ios_base::app);
     if (!run_var.output_file.is_open()) {
