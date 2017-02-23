@@ -1918,7 +1918,10 @@ int main(int argc,char* argv[]) {
       std::cerr << "Unable to open output file \"" << output_string << "\"! (Aborting)\n";
       crash(2);
     }
-    truncate(output_string.c_str(),run_var.output_location);
+    if (truncate(output_string.c_str(),run_var.output_location)) {
+      std::cerr << "Failed to truncate file \"" << output_string << "\"! (Aborting)\n";
+      crash(2);
+    }
     run_var.output_file.seekp(run_var.output_location);
   }
   
