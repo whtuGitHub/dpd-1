@@ -14,8 +14,6 @@ The viscosity of the system can be measured using the result of `make viscosity`
 
 Optimization of the system requires the use of as short a cutoff as possible on neighbor searching.  To determine the lower limit on the neighbor search cutoff, use `make ncutoff_test`.  This program prints out the maximum distances traveled between neighbor searching phases, and can be compared with data from different values of the neighbor cutoff length to determine at what point the cutoff affects the results.
 
-An example input file is included.  As mentioned, the primary purpose of this program was to test and refine parameters for adequate representation of target fluids, and does not have the same features as something designed for more generic purposes.
-
 ### Running
 An example input file is included.  As mentioned, the primary purpose of this program was to test and refine parameters for adequate representation of target fluids, and does not have the same features as something designed for more generic purposes.  The basic format of a run command is:
     
