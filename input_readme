@@ -1,0 +1,61 @@
+# Conservative force cutoff
+CUTOFF C
+
+# Weight function exponent, s = 2^(1-W)
+WEIGHT W
+TIME_STEP T
+
+# Temperature
+kT 1
+
+# Simulation dimensions
+BOX X Y Z
+
+# Particles per volume
+DENSITY D
+
+# u means dpd time units
+# s means steps
+
+# Length of the simulation
+TIME T [u OR s]
+
+# Length between coordinate writing
+WRITE_TIME WT [u OR s]
+
+# Length between system backups
+BACKUP_TIME BT [u OR s]
+
+# Length between neighbor searches
+NSEARCH NS [u OR s]
+
+# Distance cutoff for neighbor searches
+NCUTOFF NC
+
+# Number of distinct particle types
+PARTICLE_TYPES P
+
+# List of P particle types
+# NAME TYPE WRITE RADIUS MASS ACTIVITY
+# WRITE = 1: write coordinates at output step
+# ACTIVITY = 1: active matter, orientation matters
+SOLVENT S 0 0.5 1 0
+COLLOID C 1 0.5 1 0
+
+# List of interactions
+# List is interpreted from i = 0 to P, j = i to P
+# NAME LAMBDA GAMMA_S GAMMA_C F_A F_B FORCE_TYPE
+# FORCE_TYPE varies the conservative force function
+# F_A and F_B are parameters for the conservative force
+SOLVENT_SOLVENT 0.5 33 33 25 0 0
+SOLVENT_COLLOID 0.5 33 33 25 0 0
+COLLOID_COLLOID 0.5 0 0 25 0 0
+
+# EXACT_NUMBER puts exactly N particles
+# of type T, displacing via a density D
+EXACT_NUMBER T N D
+
+# No formats were implemented besides 0
+# Simply fills the box with particle type 0
+INIT_FORMAT 0
+
