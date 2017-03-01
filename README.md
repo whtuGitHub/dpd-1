@@ -1,4 +1,4 @@
-ssipative Particle Dynamics
+# Dissipative Particle Dynamics
 Dissipative Particle Dynamics (DPD) is a mesoscale coarse-grained fluid dynamics simulation technique.  Instead of simulating fluids with atomistic detail, which would place needless restrictions on the time and length scales one can probe, DPD represents many molecules of the fluid with a single point particle. For a detailed description of the method and its parameters, please see the seminal work of [Hoogerbrugge and Koelman (1992)](http://iopscience.iop.org/article/10.1209/0295-5075/19/3/001) and [Groot and Warren (1997)](http://aip.scitation.org/doi/abs/10.1063/1.474784). This software implementation uses MPI to parallelize the calculations, and was used for the parameter optimization project: [Krafnick and García, *Efficient Schmidt number scaling in dissipative particle dynamics*, J. Chem. Phys. **143** (2016)](http://dx.doi.org/10.1063/1.4930921).
 
 ### Compiling
