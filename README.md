@@ -16,3 +16,9 @@ Optimization of the system requires the use of as short a cutoff as possible on 
 
 An example input file is included.  As mentioned, the primary purpose of this program was to test and refine parameters for adequate representation of target fluids, and does not have the same features as something designed for more generic purposes.
 
+### Running
+An example input file is included.  As mentioned, the primary purpose of this program was to test and refine parameters for adequate representation of target fluids, and does not have the same features as something designed for more generic purposes.  The basic format of a run command is:
+    
+    dpd.x -input INPUT_FILE -output OUTPUT_FILE
+Place `mpirun -np NP` before the command to run `NP` MPI processes in parallel, and use `-x NX -y NY -z NZ` to set the distribution of processes along each axis.  In order to set up a deterministic simulation with a fixed random seed, use `-seed N`.  Timing statistics (which were fundamental to this work) can be extracted via the `-show-cycles` option, which prints out the raw cycle count spent on a variety of tasks.
+
